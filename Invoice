@@ -1,1 +1,5 @@
 invoice-scanner
+invoice-scanner/
+├─ frontend/
+├─ backend/
+
