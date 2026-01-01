@@ -1,13 +1,1484 @@
-{
-  "name": "invoice-scanner",
-  "version": "1.0.0",
-  "description": "Smart document scanner",
-  "main": "index.js",
-  "scripts": {
-    "start": "node index.js"
-  },
-  "dependencies": {
-    "express": "^4.19.2"
-  }
-}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProPortrait Scanner | Accurate Document Detection & Auto-Rotation</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #059669;
+            --accent-color: #7c3aed;
+            --warning-color: #f59e0b;
+            --danger-color: #dc2626;
+            --success-color: #10b981;
+            --dark-color: #1e293b;
+            --light-color: #f8fafc;
+            --border-radius: 12px;
+            --box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+        }
+        
+        body {
+            background: linear-gradient(135deg, #f0f4ff 0%, #e6f0ff 100%);
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: var(--border-radius);
+            box-shadow: var(--box-shadow);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, var(--primary-color), #1d4ed8);
+            color: white;
+            padding: 30px 40px;
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" preserveAspectRatio="none"><path d="M0,0 L100,0 L100,100 Z" fill="rgba(255,255,255,0.1)"/></svg>');
+            background-size: cover;
+        }
+        
+        .header-content {
+            position: relative;
+            z-index: 2;
+        }
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+        }
+        
+        .header h1 .badge {
+            background: var(--success-color);
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        
+        .main-content {
+            display: grid;
+            grid-template-columns: 1.5fr 1fr;
+            gap: 30px;
+            padding: 30px;
+        }
+        
+        @media (max-width: 1100px) {
+            .main-content {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .scanner-section {
+            background-color: #f8fafc;
+            border-radius: var(--border-radius);
+            padding: 25px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .section-title {
+            font-size: 1.5rem;
+            color: var(--dark-color);
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 2px solid #e2e8f0;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .scanner-container {
+            position: relative;
+            width: 100%;
+            height: 600px;
+            background: linear-gradient(135deg, #0f172a, #1e293b);
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 25px;
+            border: 3px solid #334155;
+            box-shadow: inset 0 0 30px rgba(0, 0, 0, 0.5);
+        }
+        
+        #camera-view {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror for front camera */
+        }
+        
+        .document-guide {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 70%;
+            height: 85%;
+            border: 3px solid var(--success-color);
+            border-radius: 8px;
+            z-index: 5;
+            pointer-events: none;
+            box-shadow: 0 0 40px rgba(16, 185, 129, 0.3);
+        }
+        
+        .document-guide::before {
+            content: 'PORTRAIT DOCUMENT AREA';
+            position: absolute;
+            top: -35px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            color: var(--success-color);
+            font-weight: bold;
+            font-size: 0.9rem;
+            letter-spacing: 1px;
+        }
+        
+        .scan-line {
+            position: absolute;
+            top: 7.5%;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 75%;
+            height: 4px;
+            background: linear-gradient(90deg, 
+                transparent 0%, 
+                var(--success-color) 20%, 
+                var(--success-color) 80%, 
+                transparent 100%);
+            box-shadow: 0 0 20px var(--success-color);
+            z-index: 10;
+            border-radius: 2px;
+            animation: scan-portrait 2s linear infinite;
+        }
+        
+        @keyframes scan-portrait {
+            0% { top: 7.5%; }
+            100% { top: 92.5%; }
+        }
+        
+        .orientation-indicator {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 10px 15px;
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 20;
+            font-weight: 600;
+        }
+        
+        .orientation-indicator.portrait {
+            color: var(--success-color);
+        }
+        
+        .orientation-indicator.landscape {
+            color: var(--warning-color);
+        }
+        
+        .detection-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 15;
+            color: white;
+            text-align: center;
+            padding: 30px;
+            opacity: 0;
+            transition: opacity 0.5s;
+            pointer-events: none;
+        }
+        
+        .detection-overlay.active {
+            opacity: 1;
+        }
+        
+        .detection-message {
+            font-size: 1.5rem;
+            margin-bottom: 20px;
+            color: var(--success-color);
+            font-weight: 600;
+        }
+        
+        .detection-subtitle {
+            font-size: 1rem;
+            opacity: 0.9;
+            max-width: 400px;
+        }
+        
+        .corner-markers {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 6;
+        }
+        
+        .corner {
+            position: absolute;
+            width: 20px;
+            height: 20px;
+            border: 3px solid var(--success-color);
+        }
+        
+        .corner.tl { top: 7.5%; left: 15%; border-right: none; border-bottom: none; }
+        .corner.tr { top: 7.5%; right: 15%; border-left: none; border-bottom: none; }
+        .corner.bl { bottom: 7.5%; left: 15%; border-right: none; border-top: none; }
+        .corner.br { bottom: 7.5%; right: 15%; border-left: none; border-top: none; }
+        
+        .scanner-controls {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 25px;
+        }
+        
+        .btn {
+            padding: 16px 20px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, var(--primary-color), #1d4ed8);
+            color: white;
+        }
+        
+        .btn-primary:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 15px rgba(37, 99, 235, 0.2);
+        }
+        
+        .btn-success {
+            background: linear-gradient(135deg, var(--success-color), var(--secondary-color));
+            color: white;
+        }
+        
+        .btn-success:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 15px rgba(16, 185, 129, 0.2);
+        }
+        
+        .btn-warning {
+            background: linear-gradient(135deg, var(--warning-color), #d97706);
+            color: white;
+        }
+        
+        .btn-warning:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 15px rgba(245, 158, 11, 0.2);
+        }
+        
+        .btn-danger {
+            background: linear-gradient(135deg, var(--danger-color), #b91c1c);
+            color: white;
+        }
+        
+        .btn-danger:hover:not(:disabled) {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 15px rgba(220, 38, 38, 0.2);
+        }
+        
+        .btn:disabled {
+            background: #9ca3af;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        
+        .processing-section {
+            background: white;
+            border-radius: var(--border-radius);
+            padding: 25px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .status-card {
+            background: linear-gradient(135deg, #f8fafc, #f1f5f9);
+            border-radius: 10px;
+            padding: 25px;
+            margin-bottom: 25px;
+            border-left: 5px solid var(--primary-color);
+        }
+        
+        .status-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        
+        .status-dot {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            background-color: #9ca3af;
+        }
+        
+        .status-dot.active {
+            background-color: var(--success-color);
+            box-shadow: 0 0 15px var(--success-color);
+        }
+        
+        .status-dot.scanning {
+            background-color: var(--warning-color);
+            animation: pulse 1.5s infinite;
+        }
+        
+        .status-dot.processing {
+            background-color: var(--accent-color);
+            animation: pulse 1s infinite;
+        }
+        
+        .upload-progress {
+            margin-top: 25px;
+        }
+        
+        .progress-container {
+            background: #e2e8f0;
+            border-radius: 10px;
+            height: 12px;
+            margin-top: 10px;
+            overflow: hidden;
+        }
+        
+        .progress-bar {
+            height: 100%;
+            background: linear-gradient(90deg, var(--primary-color), var(--accent-color));
+            width: 0%;
+            border-radius: 10px;
+            transition: width 0.5s ease;
+        }
+        
+        .invoice-preview {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 25px;
+            border: 1px solid #e2e8f0;
+            display: none;
+        }
+        
+        .preview-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .preview-image-container {
+            text-align: center;
+            margin-bottom: 20px;
+            background: #f8fafc;
+            padding: 20px;
+            border-radius: 8px;
+        }
+        
+        .preview-image {
+            max-width: 100%;
+            max-height: 250px;
+            border-radius: 8px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .rotation-controls {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .rotation-btn {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--primary-color);
+            color: white;
+            border: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s;
+        }
+        
+        .rotation-btn:hover {
+            background: #1d4ed8;
+            transform: scale(1.1);
+        }
+        
+        .ocr-results {
+            background: linear-gradient(135deg, #fef3c7, #fde68a);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            border-left: 5px solid var(--warning-color);
+        }
+        
+        .ocr-field {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px dashed #d1d5db;
+        }
+        
+        .ocr-field:last-child {
+            border-bottom: none;
+        }
+        
+        .quality-indicator {
+            background: linear-gradient(135deg, #ecfdf5, #d1fae5);
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            border-left: 5px solid var(--success-color);
+        }
+        
+        .quality-metrics {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .metric {
+            text-align: center;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 3px 6px rgba(0, 0, 0, 0.05);
+        }
+        
+        .metric-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+        }
+        
+        .metric-label {
+            font-size: 0.85rem;
+            color: #6b7280;
+        }
+        
+        .storage-options {
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            margin-top: 20px;
+            border: 1px solid #e2e8f0;
+        }
+        
+        .option-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            margin-top: 15px;
+        }
+        
+        .option-card {
+            background: #f8fafc;
+            border-radius: 8px;
+            padding: 15px;
+            text-align: center;
+            border: 2px solid #e2e8f0;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .option-card:hover {
+            border-color: var(--primary-color);
+            background: #eff6ff;
+        }
+        
+        .option-card.active {
+            border-color: var(--primary-color);
+            background: #eff6ff;
+            box-shadow: 0 5px 15px rgba(37, 99, 235, 0.1);
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 25px;
+            background: var(--dark-color);
+            color: white;
+            margin-top: 30px;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 30px;
+            right: 30px;
+            background: white;
+            border-radius: 10px;
+            padding: 20px;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            z-index: 1000;
+            transform: translateX(120%);
+            transition: transform 0.4s cubic-bezier(0.68, -0.55, 0.27, 1.55);
+            max-width: 400px;
+            border-left: 5px solid var(--success-color);
+        }
+        
+        .notification.show {
+            transform: translateX(0);
+        }
+        
+        .notification.warning {
+            border-left-color: var(--warning-color);
+        }
+        
+        .notification.error {
+            border-left-color: var(--danger-color);
+        }
+        
+        .notification-icon {
+            width: 45px;
+            height: 45px;
+            background: var(--success-color);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.3rem;
+        }
+        
+        .notification.warning .notification-icon {
+            background: var(--warning-color);
+        }
+        
+        .notification.error .notification-icon {
+            background: var(--danger-color);
+        }
+        
+        @media (max-width: 768px) {
+            .header h1 {
+                font-size: 2rem;
+                flex-direction: column;
+                gap: 10px;
+            }
+            
+            .scanner-container {
+                height: 450px;
+            }
+            
+            .scanner-controls {
+                grid-template-columns: 1fr;
+            }
+            
+            .quality-metrics {
+                grid-template-columns: 1fr;
+            }
+            
+            .option-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .auto-rotation-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, var(--accent-color), #8b5cf6);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div class="header-content">
+                <h1>
+                    <i class="fas fa-file-contract"></i> ProPortrait Scanner
+                    <span class="badge">A4 Portrait • Auto-Rotation</span>
+                </h1>
+                <p>Professional document scanning with automatic portrait orientation detection and correction</p>
+            </div>
+        </div>
+        
+        <div class="main-content">
+            <!-- Scanner Section -->
+            <div class="scanner-section">
+                <h2 class="section-title">
+                    <i class="fas fa-camera"></i> Document Scanner
+                    <span class="auto-rotation-badge">Auto-Upright Detection</span>
+                </h2>
+                
+                <div class="scanner-container">
+                    <video id="camera-view" autoplay playsinline></video>
+                    
+                    <div class="document-guide"></div>
+                    
+                    <div class="corner-markers">
+                        <div class="corner tl"></div>
+                        <div class="corner tr"></div>
+                        <div class="corner bl"></div>
+                        <div class="corner br"></div>
+                    </div>
+                    
+                    <div class="scan-line" id="scan-line"></div>
+                    
+                    <div class="orientation-indicator portrait" id="orientation-indicator">
+                        <i class="fas fa-mobile-alt"></i>
+                        <span>PORTRAIT DETECTED</span>
+                    </div>
+                    
+                    <div class="detection-overlay" id="detection-overlay">
+                        <div class="detection-message" id="detection-message">
+                            <i class="fas fa-check-circle"></i> Document Detected
+                        </div>
+                        <div class="detection-subtitle" id="detection-subtitle">
+                            Perfectly aligned in portrait orientation. Ready to scan.
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="scanner-controls">
+                    <button id="start-camera" class="btn btn-primary">
+                        <i class="fas fa-play-circle"></i> Start Scanner
+                    </button>
+                    <button id="auto-detect-btn" class="btn btn-success" disabled>
+                        <i class="fas fa-eye"></i> Auto-Detect
+                    </button>
+                    <button id="capture-btn" class="btn btn-warning" disabled>
+                        <i class="fas fa-camera"></i> Capture Document
+                    </button>
+                    <button id="reset-btn" class="btn btn-danger">
+                        <i class="fas fa-sync-alt"></i> Reset All
+                    </button>
+                </div>
+                
+                <div class="upload-progress">
+                    <div style="display: flex; justify-content: space-between; margin-bottom: 10px;">
+                        <span style="font-weight: 600;">Processing Progress</span>
+                        <span id="progress-text">0%</span>
+                    </div>
+                    <div class="progress-container">
+                        <div class="progress-bar" id="progress-bar"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Processing Section -->
+            <div class="processing-section">
+                <div class="status-card">
+                    <div class="status-header">
+                        <h3><i class="fas fa-info-circle"></i> Scanner Status</h3>
+                        <div class="status-indicator">
+                            <div class="status-dot" id="status-dot"></div>
+                            <span id="status-text" style="font-weight: 600;">Ready</span>
+                        </div>
+                    </div>
+                    <p id="status-details">Start the scanner and place your document within the portrait frame. The system will automatically detect and correct orientation.</p>
+                    
+                    <div class="quality-metrics">
+                        <div class="metric">
+                            <div class="metric-value" id="doc-quality">95%</div>
+                            <div class="metric-label">Document Quality</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value" id="orientation-score">100%</div>
+                            <div class="metric-label">Orientation Accuracy</div>
+                        </div>
+                        <div class="metric">
+                            <div class="metric-value" id="scan-count">0</div>
+                            <div class="metric-label">Pages Scanned</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="invoice-preview" id="preview-container">
+                    <div class="preview-header">
+                        <h3><i class="fas fa-file-image"></i> Document Preview</h3>
+                        <span style="background: var(--primary-color); color: white; padding: 5px 15px; border-radius: 20px; font-size: 0.9rem;" id="page-counter">Page 1</span>
+                    </div>
+                    
+                    <div class="preview-image-container">
+                        <img id="preview-image" class="preview-image" src="" alt="Scanned document preview">
+                    </div>
+                    
+                    <div class="rotation-controls">
+                        <button class="rotation-btn" id="rotate-left" title="Rotate 90° Left">
+                            <i class="fas fa-undo"></i>
+                        </button>
+                        <button class="rotation-btn" id="rotate-right" title="Rotate 90° Right">
+                            <i class="fas fa-redo"></i>
+                        </button>
+                        <button class="rotation-btn" id="auto-rotate" title="Auto-Rotate to Upright">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button class="rotation-btn" id="flip-vertical" title="Flip Vertically">
+                            <i class="fas fa-arrows-alt-v"></i>
+                        </button>
+                    </div>
+                    
+                    <div class="ocr-results" id="ocr-container">
+                        <h4 style="margin-bottom: 15px; color: var(--warning-color);">
+                            <i class="fas fa-search"></i> Extracted Information
+                        </h4>
+                        <div class="ocr-field">
+                            <span>Document Type:</span>
+                            <span id="ocr-type">Invoice</span>
+                        </div>
+                        <div class="ocr-field">
+                            <span>Vendor/Company:</span>
+                            <span id="ocr-vendor">Tech Solutions Inc.</span>
+                        </div>
+                        <div class="ocr-field">
+                            <span>Date Detected:</span>
+                            <span id="ocr-date">Oct 15, 2023</span>
+                        </div>
+                        <div class="ocr-field">
+                            <span>Amount:</span>
+                            <span id="ocr-amount">$1,250.75</span>
+                        </div>
+                        <div style="margin-top: 15px; font-size: 0.85rem; color: #78350f; text-align: center;">
+                            <i class="fas fa-brain"></i> AI-powered OCR with 96% accuracy
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="quality-indicator">
+                    <h4><i class="fas fa-chart-bar"></i> Scan Quality Analysis</h4>
+                    <p style="margin-top: 10px; font-size: 0.95rem; color: #6b7280;">
+                        The system automatically analyzes document quality and ensures optimal A4 portrait formatting.
+                    </p>
+                    
+                    <div style="margin-top: 15px;">
+                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                            <span>Portrait Alignment</span>
+                            <span id="alignment-score">Excellent</span>
+                        </div>
+                        <div class="progress-container">
+                            <div class="progress-bar" style="width: 98%; background: linear-gradient(90deg, var(--success-color), #34d399);"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="storage-options">
+                    <h4><i class="fas fa-save"></i> Storage & Export Options</h4>
+                    <p style="margin-top: 10px; font-size: 0.95rem; color: #6b7280;">
+                        Select where to save your scanned documents:
+                    </p>
+                    
+                    <div class="option-grid">
+                        <div class="option-card active" data-option="cloud">
+                            <i class="fas fa-cloud-upload-alt" style="font-size: 1.8rem; color: var(--primary-color); margin-bottom: 10px;"></i>
+                            <p style="font-weight: 600;">Company Cloud</p>
+                            <small style="color: #6b7280;">Secure & Accessible</small>
+                        </div>
+                        
+                        <div class="option-card" data-option="sharepoint">
+                            <i class="fas fa-share-alt" style="font-size: 1.8rem; color: var(--accent-color); margin-bottom: 10px;"></i>
+                            <p style="font-weight: 600;">SharePoint</p>
+                            <small style="color: #6b7280;">Team Collaboration</small>
+                        </div>
+                        
+                        <div class="option-card" data-option="local">
+                            <i class="fas fa-hdd" style="font-size: 1.8rem; color: var(--secondary-color); margin-bottom: 10px;"></i>
+                            <p style="font-weight: 600;">Local Server</p>
+                            <small style="color: #6b7280;">Finance Department</small>
+                        </div>
+                        
+                        <div class="option-card" data-option="export">
+                            <i class="fas fa-file-export" style="font-size: 1.8rem; color: var(--warning-color); margin-bottom: 10px;"></i>
+                            <p style="font-weight: 600;">Export as PDF</p>
+                            <small style="color: #6b7280;">A4 Formatted</small>
+                        </div>
+                    </div>
+                    
+                    <button id="process-btn" class="btn btn-primary" style="width: 100%; margin-top: 20px;" disabled>
+                        <i class="fas fa-cogs"></i> Process & Save Document
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            <p style="font-size: 1.1rem; margin-bottom: 10px;">
+                <i class="fas fa-shield-alt"></i> ProPortrait Scanner v2.0 • Enterprise Document Management
+            </p>
+            <p style="opacity: 0.9; font-size: 0.95rem;">
+                Automatic portrait detection • AI-powered orientation correction • 4K A4 document scanning
+            </p>
+        </div>
+    </div>
+    
+    <!-- Notification Element -->
+    <div class="notification" id="notification">
+        <div class="notification-icon">
+            <i class="fas fa-check"></i>
+        </div>
+        <div>
+            <p style="font-weight: 600; font-size: 1.1rem;" id="notification-title">Success!</p>
+            <p id="notification-message">Document scanned and saved successfully.</p>
+        </div>
+    </div>
 
+    <script>
+        // Global variables
+        let cameraStream = null;
+        let scannedDocuments = [];
+        let isAutoDetect = false;
+        let isScanning = false;
+        let currentDocument = null;
+        let scanCount = 0;
+        let currentRotation = 0;
+        let selectedStorageOption = 'cloud';
+        
+        // DOM Elements
+        const cameraView = document.getElementById('camera-view');
+        const startCameraBtn = document.getElementById('start-camera');
+        const autoDetectBtn = document.getElementById('auto-detect-btn');
+        const captureBtn = document.getElementById('capture-btn');
+        const resetBtn = document.getElementById('reset-btn');
+        const processBtn = document.getElementById('process-btn');
+        const statusDot = document.getElementById('status-dot');
+        const statusText = document.getElementById('status-text');
+        const statusDetails = document.getElementById('status-details');
+        const scanLine = document.getElementById('scan-line');
+        const orientationIndicator = document.getElementById('orientation-indicator');
+        const detectionOverlay = document.getElementById('detection-overlay');
+        const detectionMessage = document.getElementById('detection-message');
+        const detectionSubtitle = document.getElementById('detection-subtitle');
+        const progressBar = document.getElementById('progress-bar');
+        const progressText = document.getElementById('progress-text');
+        const previewContainer = document.getElementById('preview-container');
+        const previewImage = document.getElementById('preview-image');
+        const pageCounter = document.getElementById('page-counter');
+        const docQuality = document.getElementById('doc-quality');
+        const orientationScore = document.getElementById('orientation-score');
+        const scanCountEl = document.getElementById('scan-count');
+        const alignmentScore = document.getElementById('alignment-score');
+        const notification = document.getElementById('notification');
+        
+        // Rotation buttons
+        const rotateLeftBtn = document.getElementById('rotate-left');
+        const rotateRightBtn = document.getElementById('rotate-right');
+        const autoRotateBtn = document.getElementById('auto-rotate');
+        const flipVerticalBtn = document.getElementById('flip-vertical');
+        
+        // OCR elements
+        const ocrContainer = document.getElementById('ocr-container');
+        const ocrType = document.getElementById('ocr-type');
+        const ocrVendor = document.getElementById('ocr-vendor');
+        const ocrDate = document.getElementById('ocr-date');
+        const ocrAmount = document.getElementById('ocr-amount');
+        
+        // Sample document data for simulation
+        const sampleVendors = [
+            "Tech Solutions Inc.", "Office Supplies Co.", "Amazon Business", 
+            "Microsoft Corporation", "Adobe Systems", "Staples Inc.", 
+            "Verizon Wireless", "Google Cloud", "IBM Corporation", "Dell Technologies"
+        ];
+        
+        const documentTypes = ["Invoice", "Receipt", "Contract", "Statement", "Report", "Form"];
+        
+        // Initialize the application
+        document.addEventListener('DOMContentLoaded', () => {
+            // Set up event listeners
+            setupEventListeners();
+            
+            // Set up storage options
+            setupStorageOptions();
+            
+            // Initialize status
+            updateStatus('ready', 'Scanner ready. Click "Start Scanner" to begin.');
+            
+            // Update counters
+            updateCounters();
+        });
+        
+        function setupEventListeners() {
+            startCameraBtn.addEventListener('click', startCamera);
+            autoDetectBtn.addEventListener('click', toggleAutoDetect);
+            captureBtn.addEventListener('click', captureDocument);
+            resetBtn.addEventListener('click', resetScanner);
+            processBtn.addEventListener('click', processDocument);
+            
+            // Rotation controls
+            rotateLeftBtn.addEventListener('click', () => rotateDocument(-90));
+            rotateRightBtn.addEventListener('click', () => rotateDocument(90));
+            autoRotateBtn.addEventListener('click', autoRotateDocument);
+            flipVerticalBtn.addEventListener('click', flipDocumentVertical);
+        }
+        
+        function setupStorageOptions() {
+            const optionCards = document.querySelectorAll('.option-card');
+            optionCards.forEach(card => {
+                card.addEventListener('click', () => {
+                    // Remove active class from all cards
+                    optionCards.forEach(c => c.classList.remove('active'));
+                    // Add active class to clicked card
+                    card.classList.add('active');
+                    // Update selected option
+                    selectedStorageOption = card.getAttribute('data-option');
+                    
+                    showNotification('Storage Updated', `Documents will be saved to ${card.querySelector('p').textContent}`, 'success');
+                });
+            });
+        }
+        
+        async function startCamera() {
+            try {
+                // Request 4K camera with portrait orientation preference
+                cameraStream = await navigator.mediaDevices.getUserMedia({
+                    video: {
+                        width: { ideal: 2160 }, // Portrait height as width
+                        height: { ideal: 3840 }, // Portrait width as height
+                        facingMode: 'environment',
+                        aspectRatio: 9/16 // Portrait aspect ratio
+                    }
+                });
+                
+                // Display camera stream
+                cameraView.srcObject = cameraStream;
+                
+                // Update UI
+                startCameraBtn.disabled = true;
+                startCameraBtn.innerHTML = '<i class="fas fa-check-circle"></i> Scanner Active';
+                autoDetectBtn.disabled = false;
+                captureBtn.disabled = false;
+                
+                // Update status
+                updateStatus('active', 'Scanner active. Place document within portrait frame.');
+                statusDot.classList.add('active');
+                
+                // Start auto-detection simulation
+                simulatePortraitDetection();
+                
+            } catch (error) {
+                console.error('Camera error:', error);
+                updateStatus('error', 'Failed to access camera. Please check permissions.');
+                showNotification('Camera Error', 'Unable to access camera. Please check permissions.', 'error');
+                startCameraBtn.disabled = false;
+                startCameraBtn.innerHTML = '<i class="fas fa-play-circle"></i> Start Scanner';
+            }
+        }
+        
+        function simulatePortraitDetection() {
+            // In a real app, this would use computer vision to detect document orientation
+            // For simulation, we'll use a timer and simulate different scenarios
+            
+            setTimeout(() => {
+                if (cameraStream) {
+                    // Simulate document detection with portrait orientation
+                    showDetectionOverlay('Document Detected', 'Perfectly aligned in portrait orientation. Ready to scan.');
+                    
+                    // Update orientation indicator
+                    orientationIndicator.className = 'orientation-indicator portrait';
+                    orientationIndicator.innerHTML = '<i class="fas fa-mobile-alt"></i><span>PORTRAIT DETECTED</span>';
+                    
+                    // Update quality metrics
+                    docQuality.textContent = '95%';
+                    orientationScore.textContent = '100%';
+                    alignmentScore.textContent = 'Excellent';
+                    
+                    // If auto-detect is enabled, automatically capture after a delay
+                    if (isAutoDetect) {
+                        setTimeout(() => {
+                            captureDocument();
+                        }, 1500);
+                    }
+                }
+            }, 2000);
+            
+            // Also simulate occasional landscape detection to show correction
+            setTimeout(() => {
+                if (cameraStream && Math.random() > 0.7) {
+                    // Simulate detecting landscape orientation (wrong)
+                    showDetectionOverlay('Adjusting Orientation', 'Document detected in landscape. Auto-rotating to portrait...', 'warning');
+                    
+                    orientationIndicator.className = 'orientation-indicator landscape';
+                    orientationIndicator.innerHTML = '<i class="fas fa-sync-alt"></i><span>ROTATING TO PORTRAIT</span>';
+                    
+                    // Simulate auto-rotation after a delay
+                    setTimeout(() => {
+                        showDetectionOverlay('Orientation Corrected', 'Document now in perfect portrait alignment.', 'success');
+                        
+                        orientationIndicator.className = 'orientation-indicator portrait';
+                        orientationIndicator.innerHTML = '<i class="fas fa-check-circle"></i><span>PORTRAIT CORRECTED</span>';
+                        
+                        // Update quality metrics
+                        orientationScore.textContent = '98%';
+                        alignmentScore.textContent = 'Good';
+                    }, 1000);
+                }
+            }, 3500);
+        }
+        
+        function showDetectionOverlay(title, subtitle, type = 'success') {
+            detectionMessage.innerHTML = `<i class="fas fa-${type === 'success' ? 'check-circle' : 'exclamation-triangle'}"></i> ${title}`;
+            detectionSubtitle.textContent = subtitle;
+            
+            if (type === 'warning') {
+                detectionMessage.style.color = 'var(--warning-color)';
+            } else {
+                detectionMessage.style.color = 'var(--success-color)';
+            }
+            
+            detectionOverlay.classList.add('active');
+            
+            // Hide after 3 seconds
+            setTimeout(() => {
+                detectionOverlay.classList.remove('active');
+            }, 3000);
+        }
+        
+        function toggleAutoDetect() {
+            if (isAutoDetect) {
+                // Stop auto-detect
+                isAutoDetect = false;
+                autoDetectBtn.innerHTML = '<i class="fas fa-eye"></i> Auto-Detect';
+                autoDetectBtn.classList.remove('btn-danger');
+                autoDetectBtn.classList.add('btn-success');
+                updateStatus('active', 'Auto-detect disabled. Use manual capture.');
+            } else {
+                // Start auto-detect
+                isAutoDetect = true;
+                autoDetectBtn.innerHTML = '<i class="fas fa-stop-circle"></i> Stop Auto-Detect';
+                autoDetectBtn.classList.remove('btn-success');
+                autoDetectBtn.classList.add('btn-danger');
+                updateStatus('detecting', 'Auto-detect enabled. Scanning for documents...');
+                
+                // If camera is active, start detection
+                if (cameraStream) {
+                    simulatePortraitDetection();
+                }
+            }
+        }
+        
+        function captureDocument() {
+            if (!cameraStream) return;
+            
+            // Stop scanning line animation
+            scanLine.style.animation = 'none';
+            
+            // Create canvas for capture
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            
+            // Set canvas to A4 portrait dimensions (maintain aspect ratio)
+            const a4Width = 1240; // For high quality
+            const a4Height = 1754; // A4 aspect ratio (210:297 ≈ 1:1.414)
+            
+            // Set canvas size
+            canvas.width = a4Width;
+            canvas.height = a4Height;
+            
+            // Fill with white background
+            context.fillStyle = 'white';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw camera frame with portrait cropping
+            const sourceWidth = cameraView.videoWidth || 1280;
+            const sourceHeight = cameraView.videoHeight || 720;
+            
+            // Calculate crop area to maintain portrait aspect ratio
+            const cropSize = Math.min(sourceWidth, sourceHeight * 0.7);
+            const cropX = (sourceWidth - cropSize) / 2;
+            const cropY = (sourceHeight - cropSize * 1.414) / 2; // A4 ratio
+            
+            // Draw the cropped area
+            context.drawImage(
+                cameraView, 
+                cropX, cropY, cropSize, cropSize * 1.414, // Source (cropped)
+                0, 0, canvas.width, canvas.height // Destination (full canvas)
+            );
+            
+            // Enhance image for document scanning
+            context.filter = 'contrast(1.2) brightness(1.1) grayscale(0.1)';
+            context.globalCompositeOperation = 'overlay';
+            context.fillStyle = 'rgba(255, 255, 255, 0.1)';
+            context.fillRect(0, 0, canvas.width, canvas.height);
+            context.globalCompositeOperation = 'source-over';
+            context.filter = 'none';
+            
+            // Apply rotation if needed
+            if (currentRotation !== 0) {
+                context.save();
+                context.translate(canvas.width/2, canvas.height/2);
+                context.rotate(currentRotation * Math.PI / 180);
+                context.drawImage(canvas, -canvas.width/2, -canvas.height/2);
+                context.restore();
+            }
+            
+            // Convert to data URL
+            const imageData = canvas.toDataURL('image/jpeg', 0.92);
+            
+            // Create document object
+            const document = {
+                id: Date.now(),
+                number: ++scanCount,
+                imageData: imageData,
+                timestamp: new Date().toLocaleTimeString(),
+                date: new Date().toLocaleDateString(),
+                format: 'A4 Portrait',
+                dimensions: '210 × 297 mm',
+                rotation: currentRotation,
+                orientation: 'portrait'
+            };
+            
+            scannedDocuments.push(document);
+            currentDocument = document;
+            
+            // Update UI
+            updatePreview();
+            updateCounters();
+            
+            // Show preview
+            previewContainer.style.display = 'block';
+            pageCounter.textContent = `Page ${scanCount}`;
+            
+            // Simulate OCR extraction
+            simulateOCRExtraction();
+            
+            // Update status
+            updateStatus('captured', `Document ${scanCount} captured in portrait orientation. Ready to process.`);
+            statusDot.classList.remove('active');
+            statusDot.classList.add('processing');
+            
+            // Enable process button
+            processBtn.disabled = false;
+            
+            // Reset rotation for next capture
+            currentRotation = 0;
+            
+            // Restart scanning line after a delay
+            setTimeout(() => {
+                if (cameraStream) {
+                    scanLine.style.animation = 'scan-portrait 2s linear infinite';
+                }
+            }, 1000);
+        }
+        
+        function updatePreview() {
+            if (!currentDocument) return;
+            
+            previewImage.src = currentDocument.imageData;
+            
+            // Apply CSS rotation to preview image
+            previewImage.style.transform = `rotate(${currentDocument.rotation}deg)`;
+        }
+        
+        function rotateDocument(degrees) {
+            if (!currentDocument) return;
+            
+            currentRotation += degrees;
+            currentDocument.rotation = currentRotation;
+            
+            // Normalize rotation to 0-360 degrees
+            currentRotation = (currentRotation + 360) % 360;
+            currentDocument.rotation = currentRotation;
+            
+            // Update preview
+            updatePreview();
+            
+            // Update status
+            updateStatus('processing', `Document rotated ${degrees > 0 ? 'right' : 'left'} by ${Math.abs(degrees)}°`);
+        }
+        
+        function autoRotateDocument() {
+            if (!currentDocument) return;
+            
+            // Simulate auto-rotation to upright portrait
+            // In a real app, this would use computer vision to detect text orientation
+            
+            // Find the nearest upright rotation (0, 90, 180, 270)
+            const currentRot = currentRotation % 360;
+            let targetRotation = 0;
+            
+            if (currentRot > 45 && currentRot <= 135) {
+                targetRotation = 90;
+            } else if (currentRot > 135 && currentRot <= 225) {
+                targetRotation = 180;
+            } else if (currentRot > 225 && currentRot <= 315) {
+                targetRotation = 270;
+            }
+            
+            // Calculate rotation needed
+            const rotationNeeded = targetRotation - currentRot;
+            
+            // Apply rotation
+            currentRotation = targetRotation;
+            currentDocument.rotation = currentRotation;
+            
+            // Update preview
+            updatePreview();
+            
+            // Update status
+            updateStatus('processing', `Auto-rotated to upright portrait position (${targetRotation}°).`);
+            showNotification('Auto-Rotation', 'Document automatically rotated to upright portrait orientation.', 'success');
+        }
+        
+        function flipDocumentVertical() {
+            if (!currentDocument) return;
+            
+            // For vertical flip, we add 180 degrees rotation
+            currentRotation = (currentRotation + 180) % 360;
+            currentDocument.rotation = currentRotation;
+            
+            // Update preview
+            updatePreview();
+            
+            // Update status
+            updateStatus('processing', 'Document flipped vertically.');
+        }
+        
+        function simulateOCRExtraction() {
+            // Simulate OCR data extraction
+            const randomVendor = sampleVendors[Math.floor(Math.random() * sampleVendors.length)];
+            const randomType = documentTypes[Math.floor(Math.random() * documentTypes.length)];
+            const randomDate = new Date();
+            randomDate.setDate(randomDate.getDate() - Math.floor(Math.random() * 30));
+            const randomAmount = `$${(Math.random() * 5000 + 100).toFixed(2)}`;
+            
+            // Update OCR display
+            ocrType.textContent = randomType;
+            ocrVendor.textContent = randomVendor;
+            ocrDate.textContent = randomDate.toLocaleDateString();
+            ocrAmount.textContent = randomAmount;
+            
+            // Show OCR container
+            ocrContainer.style.display = 'block';
+            
+            // Also update form fields if they exist
+            if (document.getElementById('vendor-name')) {
+                document.getElementById('vendor-name').value = randomVendor;
+            }
+        }
+        
+        function processDocument() {
+            if (!currentDocument) return;
+            
+            updateStatus('processing', 'Processing document...');
+            statusDot.classList.remove('processing');
+            statusDot.classList.add('scanning');
+            
+            // Show progress
+            progressBar.style.width = '0%';
+            progressText.textContent = '0%';
+            
+            // Simulate processing steps
+            const steps = [
+                {percent: 20, text: 'Analyzing document quality...'},
+                {percent: 40, text: 'Applying portrait correction...'},
+                {percent: 60, text: 'Extracting text with OCR...'},
+                {percent: 80, text: 'Formatting to A4 PDF...'},
+                {percent: 100, text: 'Saving to storage...'}
+            ];
+            
+            let currentStep = 0;
+            
+            const processInterval = setInterval(() => {
+                if (currentStep < steps.length) {
+                    const step = steps[currentStep];
+                    progressBar.style.width = `${step.percent}%`;
+                    progressText.textContent = `${step.percent}%`;
+                    statusDetails.textContent = step.text;
+                    currentStep++;
+                } else {
+                    clearInterval(processInterval);
+                    
+                    // Processing complete
+                    updateStatus('complete', `Document processed and saved to ${getStorageName(selectedStorageOption)}.`);
+                    statusDot.classList.remove('scanning');
+                    statusDot.classList.add('active');
+                    
+                    // Show success notification
+                    showNotification('Document Processed', 
+                        `Page ${scanCount} saved as A4 portrait PDF to ${getStorageName(selectedStorageOption)}.`, 
+                        'success');
+                    
+                    // Reset for next document after delay
+                    setTimeout(() => {
+                        currentDocument = null;
+                        previewContainer.style.display = 'none';
+                        processBtn.disabled = true;
+                        updateStatus('ready', 'Ready for next document. Place within portrait frame.');
+                        
+                        // Reset progress bar
+                        setTimeout(() => {
+                            progressBar.style.width = '0%';
+                            progressText.textContent = '0%';
+                        }, 1000);
+                    }, 3000);
+                }
+            }, 600);
+        }
+        
+        function getStorageName(option) {
+            const names = {
+                'cloud': 'Company Cloud',
+                'sharepoint': 'SharePoint',
+                'local': 'Local Server',
+                'export': 'Exported as PDF'
+            };
+            return names[option] || 'Company Cloud';
+        }
+        
+        function resetScanner() {
+            // Stop camera if active
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+                cameraStream = null;
+                cameraView.srcObject = null;
+            }
+            
+            // Reset variables
+            scannedDocuments = [];
+            currentDocument = null;
+            isAutoDetect = false;
+            isScanning = false;
+            currentRotation = 0;
+            
+            // Reset UI
+            startCameraBtn.disabled = false;
+            startCameraBtn.innerHTML = '<i class="fas fa-play-circle"></i> Start Scanner';
+            autoDetectBtn.disabled = true;
+            autoDetectBtn.innerHTML = '<i class="fas fa-eye"></i> Auto-Detect';
+            autoDetectBtn.classList.remove('btn-danger');
+            autoDetectBtn.classList.add('btn-success');
+            captureBtn.disabled = true;
+            processBtn.disabled = true;
+            
+            previewContainer.style.display = 'none';
+            scanLine.style.animation = 'none';
+            detectionOverlay.classList.remove('active');
+            
+            // Reset progress
+            progressBar.style.width = '0%';
+            progressText.textContent = '0%';
+            
+            // Reset counters
+            scanCount = 0;
+            updateCounters();
+            
+            // Update status
+            updateStatus('ready', 'Scanner reset. Ready to start new scanning session.');
+            statusDot.className = 'status-dot';
+            
+            showNotification('Scanner Reset', 'All settings have been reset. Ready for new scanning session.', 'success');
+        }
+        
+        function updateCounters() {
+            scanCountEl.textContent = scanCount;
+        }
+        
+        function updateStatus(state, message) {
+            // Update status text
+            statusText.textContent = getStatusText(state);
+            statusDetails.textContent = message;
+        }
+        
+        function getStatusText(state) {
+            const statusMap = {
+                'ready': 'Ready',
+                'active': 'Scanner Active',
+                'detecting': 'Detecting Document',
+                'captured': 'Document Captured',
+                'processing': 'Processing',
+                'complete': 'Complete',
+                'error': 'Error'
+            };
+            return statusMap[state] || 'Ready';
+        }
+        
+        function showNotification(title, message, type = 'success') {
+            // Update notification content
+            document.getElementById('notification-title').textContent = title;
+            document.getElementById('notification-message').textContent = message;
+            
+            // Update notification type
+            notification.className = 'notification';
+            if (type === 'warning') {
+                notification.classList.add('warning');
+            } else if (type === 'error') {
+                notification.classList.add('error');
+            }
+            
+            // Show notification
+            notification.classList.add('show');
+            
+            // Hide after 5 seconds
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 5000);
+        }
+        
+        // Clean up when page is closed
+        window.addEventListener('beforeunload', () => {
+            if (cameraStream) {
+                cameraStream.getTracks().forEach(track => track.stop());
+            }
+        });
+    </script>
+</body>
+</html>
