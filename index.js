@@ -1,65 +1,20 @@
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
+const express = require("express");
+const path = require("path");
 
-body {
-  background: #fff;
-  font-family: Arial, sans-serif;
-  overflow: hidden;
-}
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-/* FLOATING BUBBLES */
-.bubble {
-  position: absolute;
-  width: 45px;
-  height: 45px;
-  background: rgba(0,0,0,0.06);
-  border-radius: 50%;
-  animation: float 16s infinite linear;
-}
-.bubble:nth-child(1){ left:15%; }
-.bubble:nth-child(2){ left:55%; animation-delay:5s; }
-.bubble:nth-child(3){ left:80%; animation-delay:9s; }
+// Serve frontend
+app.use(express.static(path.join(__dirname, "public")));
 
-@keyframes float {
-  from { top:110%; }
-  to { top:-20%; }
-}
+// Home
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
 
-.container {
-  height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-.scanner {
-  position: relative;
-  width: 90%;
-  max-width: 380px;
-  height: 520px;
-  border-radius: 20px;
-  overflow: hidden;
-}
-
-video {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-/* A4 FRAME */
-.frame {
-  position: absolute;
-  top: 10%;
-  left: 8%;
-  width: 84%;
-  height: 80%;
-  border: 2px dashed #999;
-  border-radius: 12px;
-}
+app.listen(PORT, () => {
+  console.log(`Scanner running on http://localhost:${PORT}`);
+});
 
 /* SCAN LINE */
 .scan-line {
