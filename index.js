@@ -1,51 +1,21 @@
-const express = require("express");
-const path = require("path");
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Invoice Scanner</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
 
-const app = express();
-const PORT = process.env.PORT || 3000;
+<div class="scanner-container">
+  <video id="camera" autoplay playsinline></video>
+  <div class="scan-line"></div>
+  <canvas id="canvas"></canvas>
+</div>
 
-// Serve frontend
-app.use(express.static(path.join(__dirname, "public")));
+<button id="captureBtn">Scan Document</button>
 
-// Home
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
+<script src="scanner.js"></script>
+</body>
+</html>
 
-app.listen(PORT, () => {
-  console.log(`Scanner running on http://localhost:${PORT}`);
-});
-
-/* SCAN LINE */
-.scan-line {
-  position: absolute;
-  left: 8%;
-  width: 84%;
-  height: 4px;
-  background: linear-gradient(to right, transparent, #00ff00, transparent);
-  animation: scan 2.5s linear infinite;
-  opacity: 0.4;
-}
-
-.ready .scan-line {
-  opacity: 1;
-}
-
-@keyframes scan {
-  from { top: 10%; }
-  to { top: 90%; }
-}
-
-.status {
-  position: absolute;
-  bottom: 12px;
-  width: 100%;
-  text-align: center;
-  font-size: 14px;
-  color: #333;
-}
-
-canvas {
-  display: none;
-}
-  
